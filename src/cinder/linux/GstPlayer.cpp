@@ -349,12 +349,22 @@ bool GstPlayer::initializeGStreamer()
 			return false;
 		}
 		else {
-			if( major >= 1 && minor >= 6 ) {
-				sUseGstGl = false;
+#if defined(CINDER_LINUX)
+            // Linux Ubuntu 16.04 completely hangs with gstreamer 1.8.1 and sUseGstGL = true
+            // need to investigate this more
+            if( major >= 1 && minor >= 6 && !(major == 1 && minor == 8 && micro == 1) ) {
+
+                sUseGstGl = true;
+            }
+#else
+            if( major >= 1 && minor >= 6 ) {
+
+				sUseGstGl = true;
 			}
-			else {
-				sUseGstGl = false;
-			}
+#endif
+            else {
+                sUseGstGl = false;
+            }
 			g_print( "Initialized GStreamer version %i.%i.%i.%i\n", major, minor, micro, nano );
 			return true;
 		}
