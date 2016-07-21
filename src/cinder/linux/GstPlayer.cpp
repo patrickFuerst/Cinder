@@ -368,6 +368,7 @@ void GstPlayer::unblockStreamingThread()
 	mUnblockStreamingThread = true;
 	mMutex.unlock();
 	mStreamingThreadCV.notify_one();
+
 }
 
 void GstPlayer::resetPipeline()
@@ -1135,6 +1136,10 @@ void GstPlayer::processNewSample( GstSample* sample )
 	}
 	else {
 		mMutex.lock();
+
+		GstBuffer* newBuffer = gst_sample_get_buffer( sample );
+		gst_buffer_map( newBuffer, &mGstData.memoryMapInfo, GST_MAP_READ ); // Map the buffer for reading the data.
+
 		// We have pre-rolled so query info and allocate buffers if we have a new video.
 		if( newVideo() ) {
 			GstCaps* currentCaps = gst_sample_get_caps( sample );
@@ -1154,9 +1159,6 @@ void GstPlayer::processNewSample( GstSample* sample )
 			///Reset the new video flag .
 			mGstData.videoHasChanged = false;
 		}
-
-		GstBuffer* newBuffer = gst_sample_get_buffer( sample );
-		gst_buffer_map( newBuffer, &mGstData.memoryMapInfo, GST_MAP_READ ); // Map the buffer for reading the data.
 
 		memcpy( mBackVBuffer, mGstData.memoryMapInfo.data, mGstData.memoryMapInfo.size );
 		
