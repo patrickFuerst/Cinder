@@ -349,7 +349,7 @@ bool GstPlayer::initializeGStreamer()
 			return false;
 		}
 		else {
-			if( major >= 1 && minor >= 6 ) {
+			if( major >= 1 && minor >= 6 && !(major == 1 && minor == 8)) {
 				sUseGstGl = true;
 			}
 			else {
