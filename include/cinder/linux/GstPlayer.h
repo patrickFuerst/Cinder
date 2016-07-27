@@ -26,6 +26,7 @@
 
 	#if defined( CINDER_GL_ES )
 		#undef GST_GL_HAVE_OPENGL
+		#undef GST_GL_HAVE_GLES2
 		#undef GST_GL_HAVE_PLATFORM_GLX
 	#else // Desktop
 		#undef GST_GL_HAVE_GLES2
@@ -102,7 +103,7 @@ struct GstData {
 	GstVideoInfo 				videoInfo; // For retrieving video info.
 	GstElement* 				pipeline 		= nullptr; 
 	GstElement* 				appSink 		= nullptr; 
-	GstElement* 				videoSink 		= nullptr; 		
+	GstElement* 				videoBin 		= nullptr; 		
 #if defined( CINDER_GST_HAS_GL )
 	GstGLContext* 				context 		= nullptr;
 	GstGLDisplay* 				display 		= nullptr;

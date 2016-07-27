@@ -20,8 +20,11 @@
 
 #include "cinder/app/AppBase.h"
 #include "cinder/gl/Environment.h"
+#include <chrono>
 
 namespace gst { namespace video {
+
+using namespace std::chrono_literals;
 
 static bool 		sUseGstGl = false;
 static const int 	sEnableAsyncStateChange = false;
@@ -388,7 +391,7 @@ void GstPlayer::resetPipeline()
 	
 	if( sUseGstGl ) {
 #if defined( CINDER_GST_HAS_GL )
-		mGstData.videoSink = nullptr;
+		mGstData.videoBin = nullptr;
 		mGstData.context = nullptr;
 		mGstData.display = nullptr;
 		mGstData.glupload = nullptr;
@@ -516,8 +519,8 @@ void GstPlayer::constructPipeline()
 		return;
 	}
 
-	mGstData.videoSink 	= gst_bin_new( "cinder-vsink" );
-	if( ! mGstData.videoSink ) g_printerr( "Failed to create video sink bin!\n" );
+	mGstData.videoBin 	= gst_bin_new( "cinder-vbin" );
+	if( ! mGstData.videoBin ) g_printerr( "Failed to create video bin!\n" );
 
 	mGstData.appSink 	= gst_element_factory_make( "appsink", "videosink" );
 	if( ! mGstData.appSink ) {
@@ -561,22 +564,22 @@ void GstPlayer::constructPipeline()
 		if( mGstData.rawCapsFilter ) g_object_set( G_OBJECT( mGstData.rawCapsFilter ), "caps", gst_caps_from_string( "video/x-raw" ), nullptr );
 		else g_printerr( "Failed to create raw caps filter element!\n" );
 
-		gst_bin_add_many( GST_BIN( mGstData.videoSink ),  mGstData.rawCapsFilter, mGstData.glupload, mGstData.glcolorconvert, mGstData.appSink, nullptr );
+		gst_bin_add_many( GST_BIN( mGstData.videoBin ),  mGstData.rawCapsFilter, mGstData.glupload, mGstData.glcolorconvert, mGstData.appSink, nullptr );
 
 		if( ! gst_element_link_many( mGstData.rawCapsFilter, mGstData.glupload, mGstData.glcolorconvert,  mGstData.appSink, nullptr ) ) {
 			g_printerr( "Failed to link video elements...!\n" );
 		}
 
 		pad = gst_element_get_static_pad( mGstData.rawCapsFilter, "sink" );
-		gst_element_add_pad( mGstData.videoSink, gst_ghost_pad_new( "sink", pad ) );
+		gst_element_add_pad( mGstData.videoBin, gst_ghost_pad_new( "sink", pad ) );
 
 		mGstData.bufferQueue = g_async_queue_new();
 #endif
     }
 	else{
-		gst_bin_add( GST_BIN( mGstData.videoSink ), mGstData.appSink );
+		gst_bin_add( GST_BIN( mGstData.videoBin ), mGstData.appSink );
 		pad = gst_element_get_static_pad( mGstData.appSink, "sink" );
-	 	gst_element_add_pad( mGstData.videoSink, gst_ghost_pad_new( "sink", pad ) );
+	 	gst_element_add_pad( mGstData.videoBin, gst_ghost_pad_new( "sink", pad ) );
 	}
 
 	if( pad ) {
@@ -584,7 +587,7 @@ void GstPlayer::constructPipeline()
 		pad = nullptr;
 	}
 
-	g_object_set( G_OBJECT( mGstData.pipeline ), "video-sink", mGstData.videoSink, nullptr );
+	g_object_set( G_OBJECT( mGstData.pipeline ), "video-sink", mGstData.videoBin, nullptr );
 
 	addBusWatch( mGstData.pipeline );
 }
@@ -917,13 +920,15 @@ bool GstPlayer::setPipelineState( GstState targetState )
 	
 	// Unblock the streaming thread for executing state change.
 	unblockStreamingThread();
+
 	GstStateChangeReturn stateChangeResult = gst_element_set_state( mGstData.pipeline, mGstData.targetState );
 	g_print( "Pipeline state about to change from : %s to %s\n", gst_element_state_get_name( current ), gst_element_state_get_name ( targetState ) );
 
 	bool success = checkStateChange( stateChangeResult );
 	if( ! sEnableAsyncStateChange && stateChangeResult == GST_STATE_CHANGE_ASYNC ) {
 		gst_element_get_state( mGstData.pipeline, &current, &pending, GST_CLOCK_TIME_NONE );
-		g_print( " Blocking until pipeline state changes from : %s to %s\n", gst_element_state_get_name( current ), gst_element_state_get_name ( targetState ) );
+		mGstData.updateState( current );
+		g_print( " Passed blocking state change to : %s with pending : %s\n", gst_element_state_get_name( current ), gst_element_state_get_name ( targetState ) );
 	}
 	
 	return success;
@@ -979,12 +984,11 @@ void GstPlayer::createTextureFromID()
 		old = (GstBuffer*)g_async_queue_try_pop( mGstData.bufferQueue );
 	}
 
-	auto deleter = [ old ] ( ci::gl::Texture* texture ) mutable { 
+	auto deleter = [ this, old ] ( ci::gl::Texture* texture ) mutable { 
 		if( old ) gst_buffer_unref( old );
 		old = nullptr;
 		delete texture;
 	};
-
 	mVideoTexture = ci::gl::Texture::create( GL_TEXTURE_2D, textureID, mGstData.width, mGstData.height, true, deleter );
 	if( mVideoTexture ) {
 		mVideoTexture->setTopDown();
@@ -1090,6 +1094,7 @@ void GstPlayer::getVideoInfo( const GstVideoInfo& videoInfo )
 
 void GstPlayer::processNewSample( GstSample* sample )
 {
+	GstBuffer* newBuffer = nullptr;
 	if( sUseGstGl ) {
 #if defined( CINDER_GST_HAS_GL )
 		// Keep only the last buffer around.
@@ -1103,7 +1108,7 @@ void GstPlayer::processNewSample( GstSample* sample )
 			}
 		}
 		// Pull the memory buffer from the sample.
-		GstBuffer* newBuffer = gst_sample_get_buffer( sample );
+		newBuffer = gst_sample_get_buffer( sample );
 
 		// Save the buffer for avoiding override on next sample.
 		// The incoming buffer is owened and managed by GStreamer.
@@ -1137,7 +1142,7 @@ void GstPlayer::processNewSample( GstSample* sample )
 	else {
 		mMutex.lock();
 
-		GstBuffer* newBuffer = gst_sample_get_buffer( sample );
+	 	newBuffer = gst_sample_get_buffer( sample );
 		gst_buffer_map( newBuffer, &mGstData.memoryMapInfo, GST_MAP_READ ); // Map the buffer for reading the data.
 
 		// We have pre-rolled so query info and allocate buffers if we have a new video.
@@ -1175,7 +1180,10 @@ void GstPlayer::processNewSample( GstSample* sample )
 
 	// Pause the streaming thread until the new Cinder texture is created.
 	std::unique_lock<std::mutex> uniqueLock( mMutex );
-	mStreamingThreadCV.wait( uniqueLock, [ this ]{ return mUnblockStreamingThread.load(); } );
+	auto now = std::chrono::system_clock::now();
+	mStreamingThreadCV.wait_until( uniqueLock, now + 100ms, [ this ]{ return mUnblockStreamingThread.load(); } );
+
+	mUnblockStreamingThread = false;
 }
 
 void GstPlayer::updateTextureID( GstBuffer* newBuffer )
@@ -1186,7 +1194,6 @@ void GstPlayer::updateTextureID( GstBuffer* newBuffer )
 
 	// Save the texture ID.
 	mGstTextureID = *(guint*)mGstData.memoryMapInfo.data;
-
 	// Unmap the memory. 
 	gst_buffer_unmap( newBuffer, &mGstData.memoryMapInfo );
 #endif
