@@ -1623,7 +1623,7 @@ void ReceiverTcp::handleSocketError( const asio::error_code &error, uint64_t ori
 {
 	std::lock_guard<std::mutex> lock( mSocketTransportErrorFnMutex );
 	if( mSocketTransportErrorFn )
-		mSocketTransportErrorFn( error, originatorId, endpoint );
+		mSocketTransportErrorFn( error, originatorId );
 	else
 		CI_LOG_E( error.message() << ", didn't receive message from " << endpoint.address().to_string() );
 }
