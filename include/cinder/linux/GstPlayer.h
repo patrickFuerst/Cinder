@@ -197,6 +197,10 @@ private:
 	static void 		onGstEos( GstAppSink* sink, gpointer userData );
 	static GstFlowReturn 	onGstSample( GstAppSink* sink, gpointer userData );
 	static GstFlowReturn	onGstPreroll( GstAppSink* sink, gpointer userData );
+	
+	void 			eos();
+	void 			ready();
+
 	void 			processNewSample( GstSample* sample );
 	void 			getVideoInfo( const GstVideoInfo& videoInfo );
 	
