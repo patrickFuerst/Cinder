@@ -375,15 +375,6 @@ void GstPlayer::unblockStreamingThread()
     mStreamingThreadCV.notify_one();
 }
 
-void GstPlayer::unblockStreamingThread()
-{
-	mMutex.lock();
-	mUnblockStreamingThread = true;
-	mMutex.unlock();
-	mStreamingThreadCV.notify_one();
-
-}
-
 void GstPlayer::resetPipeline()
 {
     if( ! mGstData.pipeline ) {
@@ -762,16 +753,6 @@ int GstPlayer::getNumFrames()
 float GstPlayer::getPixelAspectRatio() const
 {	
     return mGstData.pixelAspectRatio;
-}
-
-int GstPlayer::getNumFrames() const
-{
-	return mGstData.numFrames;
-}
-
-float GstPlayer::getPixelAspectRatio() const
-{	
-	return mGstData.pixelAspectRatio;
 }
 
 gint64 GstPlayer::getPositionNanos()
