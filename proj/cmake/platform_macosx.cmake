@@ -28,6 +28,15 @@ list( APPEND SRC_SET_AUDIO_COCOA
 	${CINDER_SRC_DIR}/cinder/audio/cocoa/FileCoreAudio.cpp
 )
 
+list( APPEND SRC_SET_QTIME
+	${CINDER_SRC_DIR}/cinder/qtime/AvfUtils.mm
+	${CINDER_SRC_DIR}/cinder/qtime/AvfWriter.mm
+	${CINDER_SRC_DIR}/cinder/qtime/MovieWriter.cpp
+	${CINDER_SRC_DIR}/cinder/qtime/QuickTimeGlImplAvf.cpp
+	${CINDER_SRC_DIR}/cinder/qtime/QuickTimeImplAvf.mm
+	${CINDER_SRC_DIR}/cinder/qtime/QuickTimeUtils.cpp
+)
+
 # specify what files need to be compiled as Objective-C++
 list( APPEND CINDER_SOURCES_OBJCPP
 	${CINDER_SRC_DIR}/cinder/Capture.cpp
@@ -44,6 +53,7 @@ list( APPEND CINDER_SOURCES_OBJCPP
 	${CINDER_SRC_DIR}/cinder/app/cocoa/AppMac.cpp
 	${CINDER_SRC_DIR}/cinder/app/cocoa/PlatformCocoa.cpp
 	${CINDER_SRC_DIR}/cinder/gl/Environment.cpp
+	${CINDER_SRC_DIR}/cinder/qtime/QuickTimeGlImplAvf.cpp
 
 	${CINDER_SRC_DIR}/AntTweakBar/TwColors.cpp
 	${CINDER_SRC_DIR}/AntTweakBar/TwFonts.cpp
@@ -93,11 +103,11 @@ endif()
 if( CINDER_MAC_USE_GSTREAMER )
 	find_library( GSTREAMER_FRAMEWORK GStreamer REQUIRED )
 	list( APPEND CINDER_LIBS_DEPENDS ${GSTREAMER_FRAMEWORK} ${GSTREAMER_FRAMEWORK}/Versions/Current/lib/libgstgl-1.0.dylib )
-	list( APPEND CINDER_INCLUDE_SYSTEM ${GSTREAMER_FRAMEWORK}/Headers ${CINDER_INC_DIR}/cinder/linux )
+	list( APPEND CINDER_INCLUDE_SYSTEM_PRIVATE ${GSTREAMER_FRAMEWORK}/Headers ${CINDER_INC_DIR}/cinder/linux )
 	list( APPEND CINDER_SRC_FILES ${CINDER_SRC_DIR}/cinder/linux/GstPlayer.cpp ${CINDER_SRC_DIR}/cinder/linux/Movie.cpp )
 	list( APPEND CINDER_DEFINES CINDER_MAC_USE_GSTREAMER )
 else()
-	# QuickTime files should go here..
+        list( APPEND CINDER_SRC_FILES ${SRC_SET_QTIME} )
 endif()
 
 list( APPEND CINDER_LIBS_DEPENDS
