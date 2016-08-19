@@ -92,6 +92,7 @@ struct GstData {
 	std::atomic<gint64> 		requestedSeekTime;
 	std::atomic<bool> 		requestedSeek;
 	std::atomic<bool> 		loop;
+	std::atomic<bool> 		loopInProgress;
 	std::atomic<bool> 		palindrome;
 	std::atomic<float> 		rate;
 	std::atomic<bool> 		isStream;

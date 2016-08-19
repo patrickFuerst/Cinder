@@ -43,6 +43,7 @@ GstData::GstData()
     requestedSeekTime( -1 ),
     requestedSeek( false ),
     loop( false ),
+    loopInProgress( false ),
     palindrome( false ),
     rate( 1.0f ),
     isStream( false ),
@@ -86,6 +87,7 @@ void GstData::prepareForNewVideo()
     fpsDenom            = -1;
     pixelAspectRatio    = 0.0f;
     loop                = false;
+    loopInProgress      = false; 
     palindrome          = false;
 }
 
@@ -112,6 +114,7 @@ void GstData::updateState( const GstState& current )
             isDone          = false;
             isPaused        = false;	
             isPlayable      = true;
+            loopInProgress  = false;
             break;
         }
         default: break;
@@ -231,7 +234,12 @@ gboolean checkBusMessages( GstBus* bus, GstMessage* message, gpointer userData )
                     g_print( "Pipeline state changed from : %s to %s with pending %s\n", gst_element_state_get_name( old ), gst_element_state_get_name ( current ), gst_element_state_get_name( pending) );
                 }
 
+                if( current == GST_STATE_PLAYING && data.loopInProgress ){
+                    data.player->looped();
+                }
+
                 data.updateState(  current );
+
             }
             break;
         }
@@ -269,7 +277,9 @@ gboolean checkBusMessages( GstBus* bus, GstMessage* message, gpointer userData )
                         if( data.player ) data.player->seekToTime( 0 );
                     }
                 }
-                data.player->looped();
+                // need to track when loop finished and we are again in the play state
+                // when we are back in play state, the right base time is set and looped is fired
+                data.loopInProgress = true;
             }
             data.videoHasChanged = false;
             data.isDone = true;
