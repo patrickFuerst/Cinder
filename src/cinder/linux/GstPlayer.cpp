@@ -106,7 +106,7 @@ void GstData::updateState( const GstState& current )
             isPaused 	    = true;
             isLoaded 	    = true;
             isPlayable 	    = true;
-            break;
+                break;
         }
         case GST_STATE_PLAYING: {
             isDone          = false;
@@ -269,6 +269,7 @@ gboolean checkBusMessages( GstBus* bus, GstMessage* message, gpointer userData )
                         if( data.player ) data.player->seekToTime( 0 );
                     }
                 }
+                data.player->looped();
             }
             data.videoHasChanged = false;
             data.isDone = true;
@@ -1099,6 +1100,11 @@ void GstPlayer::eos()
 void GstPlayer::ready()
 {
     mSignalReady.emit();
+}
+
+void GstPlayer::looped()
+{
+    mSignalLooped.emit();
 }
 
 GstFlowReturn GstPlayer::onGstSample( GstAppSink* sink, gpointer userData )

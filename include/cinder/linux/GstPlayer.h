@@ -180,11 +180,13 @@ public:
 	ci::gl::Texture2dRef	getVideoTexture();
 
     ci::signals::Signal<void()>&	getNewFrameSignal() { return mSignalNewFrame; }
+    ci::signals::Signal<void()>&	getLoopedSignal() { return mSignalLooped; }
     ci::signals::Signal<void()>&	getReadySignal() { return mSignalReady; }
     ci::signals::Signal<void()>&	getCancelledSignal() { return mSignalCancelled; }
     ci::signals::Signal<void()>&	getEndedSignal() { return mSignalEnded; }
     ci::signals::Signal<void()>&	getJumpedSignal() { return mSignalJumped; }
     ci::signals::Signal<void()>&	getOutputWasFlushedSignal() { return mSignalOutputWasFlushed; }
+	void 			looped();
 
 private:		
 	bool 			initializeGStreamer();
@@ -250,7 +252,7 @@ private:
 	std::atomic<bool>	mUnblockStreamingThread;
 	std::condition_variable	mStreamingThreadCV;
 
-    ci::signals::Signal<void()>		mSignalNewFrame, mSignalReady, mSignalCancelled, mSignalEnded, mSignalJumped, mSignalOutputWasFlushed;
+    ci::signals::Signal<void()>		mSignalLooped, mSignalNewFrame, mSignalReady, mSignalCancelled, mSignalEnded, mSignalJumped, mSignalOutputWasFlushed;
 
 };
 
