@@ -1,4 +1,3 @@
- 
 // Quell the GL macro redefined warnings.
 #if defined( __CLANG__ )
     #pragma diagnostic push
@@ -106,7 +105,7 @@ void GstData::updateState( const GstState& current )
             isPaused 	    = true;
             isLoaded 	    = true;
             isPlayable 	    = true;
-            break;
+                break;
         }
         case GST_STATE_PLAYING: {
             isDone          = false;
@@ -269,6 +268,7 @@ gboolean checkBusMessages( GstBus* bus, GstMessage* message, gpointer userData )
                         if( data.player ) data.player->seekToTime( 0 );
                     }
                 }
+                data.player->looped();
             }
             data.videoHasChanged = false;
             data.isDone = true;
@@ -1081,6 +1081,8 @@ void GstPlayer::resetSystemMemoryBuffers()
 
 void GstPlayer::onGstEos( GstAppSink* sink, gpointer userData )
 {
+    GstPlayer* me = static_cast<GstPlayer*>( userData );
+    me->eos();
 }
 
 GstFlowReturn GstPlayer::onGstPreroll( GstAppSink* sink, gpointer userData )
@@ -1088,6 +1090,20 @@ GstFlowReturn GstPlayer::onGstPreroll( GstAppSink* sink, gpointer userData )
     GstPlayer* me = static_cast<GstPlayer*>( userData );
     me->processNewSample( gst_app_sink_pull_preroll( sink ) );
     return GST_FLOW_OK;
+}
+void GstPlayer::eos()
+{
+    mSignalEnded.emit();
+}
+
+void GstPlayer::ready()
+{
+    mSignalReady.emit();
+}
+
+void GstPlayer::looped()
+{
+    mSignalLooped.emit();
 }
 
 GstFlowReturn GstPlayer::onGstSample( GstAppSink* sink, gpointer userData )
@@ -1221,7 +1237,3 @@ void GstPlayer::updateTextureID( GstBuffer* newBuffer )
 }
 
 }} // namespace gst::video
-
-#if defined( __CLANG__ )
-    #pragma diagnostic pop 
-#endif
