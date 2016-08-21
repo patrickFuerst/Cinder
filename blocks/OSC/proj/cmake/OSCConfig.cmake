@@ -4,7 +4,7 @@ if( NOT TARGET OSC )
 
 	add_library( OSC ${OSC_SOURCE_PATH}/cinder/osc/Osc.cpp )
 
-	target_compile_options( OSC PUBLIC "-std=c++11" )
+	target_compile_options( OSC PUBLIC "-std=c++14" )
 
 	target_include_directories( OSC PUBLIC "${OSC_SOURCE_PATH}" )
 	target_include_directories( OSC SYSTEM BEFORE PUBLIC "${CINDER_PATH}/include" )
