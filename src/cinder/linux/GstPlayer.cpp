@@ -962,7 +962,14 @@ bool GstPlayer::setPipelineState( GstState targetState )
 	
     if( ! sEnableAsyncStateChange && stateChangeResult == GST_STATE_CHANGE_ASYNC ) {
         g_print( " Blocking until pipeline state changes from : %s to %s\n", gst_element_state_get_name( current ), gst_element_state_get_name( targetState ) );
-        stateChangeResult = gst_element_get_state( mGstData.pipeline, &current, &pending, GST_CLOCK_TIME_NONE );
+        GstClockTime timeout = 0.2 * GST_SECOND;
+        stateChangeResult = gst_element_get_state( mGstData.pipeline, &current, &pending, timeout );
+        g_print( "Got state change result : %s \n", gst_element_state_change_return_get_name(stateChangeResult) );
+        if( stateChangeResult == GST_STATE_CHANGE_ASYNC ){
+            g_print( " State change timed-out." );
+        }else{
+
+        }
     }
 	
     return checkStateChange( stateChangeResult );
