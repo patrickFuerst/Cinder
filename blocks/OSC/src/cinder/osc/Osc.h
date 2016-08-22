@@ -768,7 +768,7 @@ class ReceiverTcp : public ReceiverBase {
 	//! connectionIdentifier. To see more about asio's error_codes, look at "asio/error.hpp". The connectionIdentifier
 	//! can be used to close the underlying socket and notify the rest of your system.
 	using SocketTransportErrorFn = std::function<void( const asio::error_code &/*error*/,
-													   uint64_t /*connectionIdentifier*/, const protocol::endpoint &/*endpoint*/ )>;
+													   uint64_t /*connectionIdentifier*/ )>;
 	//! Alias function that represents a general error callback for the underlying tcp::acceptor, arguments include the
 	//! error_code.
 	using AcceptorErrorFn = std::function<void( const asio::error_code &/*error*/ )>;
