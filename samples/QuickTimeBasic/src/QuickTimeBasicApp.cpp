@@ -51,6 +51,13 @@ void QuickTimeSampleApp::keyDown( KeyEvent event )
 		fs::path moviePath = getOpenFilePath();
 		if( ! moviePath.empty() )
 			loadMovieFile( moviePath );
+	}else if( event.getChar() == 'p' ) {
+		if( mMovie->isPlaying() ){
+			mMovie->stop();
+		}
+		else{
+			mMovie->play();
+		}
 	}
 #endif
 }
