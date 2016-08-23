@@ -313,7 +313,8 @@ GstPlayer::GstPlayer()
     mGstBus( nullptr ),
     mNewFrame( false ),
     mUnblockStreamingThread( false ),
-    mUsingCustomPipeline( false )
+    mUsingCustomPipeline( false ),
+    mBusId(-1)
 {
     bool success = initializeGStreamer();
 
@@ -435,6 +436,9 @@ void GstPlayer::resetPipeline()
 	
 void GstPlayer::resetBus()
 {
+    if(mBusId == -1)
+        return; 
+        
     bool success = g_source_remove( mBusId );
     if( success ) {
         mBusId = -1;
