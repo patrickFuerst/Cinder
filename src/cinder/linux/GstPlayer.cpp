@@ -44,6 +44,8 @@ GstData::GstData()
     requestedSeek( false ),
     loop( false ),
     loopInProgress( false ),
+    newStateRequest( false ),
+    asyncStateChange ( false ),
     palindrome( false ),
     rate( 1.0f ),
     isStream( false ),
@@ -249,14 +251,28 @@ gboolean checkBusMessages( GstBus* bus, GstMessage* message, gpointer userData )
 
             switch( data.currentState ) {
                     case GST_STATE_PAUSED: {
-                            if( data.requestedSeek  ) {
-                                if( data.player ) data.player->seekToTime( data.requestedSeekTime );
-                                    data.requestedSeek = false;
+                            
+                        data.asyncStateChange = false;
+
+                        if( data.requestedSeek  ) {
+                            if( data.player ) data.player->seekToTime( data.requestedSeekTime );
+                                data.requestedSeek = false;
+                        
+                        }else if( data.newStateRequest ){
+                            
+                            switch( data.targetState ){
+                                case GST_STATE_PLAYING: {
+                                    data.player->play();
+                                    break;
                                 }
-                            break;
+                            }
+                            data.newStateRequest = false;
+                        } 
+                        break;
                     }
                     default: break;
             }
+            g_print( "GST_MESSAGE_ASYNC_DONE\n" );
             break;
         }
 
@@ -946,6 +962,12 @@ bool GstPlayer::setPipelineState( GstState targetState )
     if( ! mGstData.pipeline )
         return false;
 	
+    if( mGstData.asyncStateChange ){
+        mGstData.newStateRequest = true;
+        mGstData.targetState = targetState;
+        return true; 
+    }
+
     GstState current, pending;
     gst_element_get_state( mGstData.pipeline, &current, &pending, 0 );
     
@@ -960,16 +982,19 @@ bool GstPlayer::setPipelineState( GstState targetState )
     // Unblock the streaming thread for avoiding state change delay.
     unblockStreamingThread();
 	
-    if( ! sEnableAsyncStateChange && stateChangeResult == GST_STATE_CHANGE_ASYNC ) {
-        g_print( " Blocking until pipeline state changes from : %s to %s\n", gst_element_state_get_name( current ), gst_element_state_get_name( targetState ) );
-        GstClockTime timeout = 5.0 * GST_SECOND;
-        stateChangeResult = gst_element_get_state( mGstData.pipeline, &current, &pending, timeout );
+     if(! sEnableAsyncStateChange && stateChangeResult == GST_STATE_CHANGE_ASYNC && current == GST_STATE_PLAYING && targetState == GST_STATE_PAUSED){
+        
+        g_print( " NOT Blocking for pipeline state changes from : %s to %s\n", gst_element_state_get_name( current ), gst_element_state_get_name( targetState ) );
+        stateChangeResult = gst_element_get_state( mGstData.pipeline, &current, &pending, 0 );
         g_print( "Got state change result : %s \n", gst_element_state_change_return_get_name(stateChangeResult) );
         if( stateChangeResult == GST_STATE_CHANGE_ASYNC ){
-            g_print( " State change timed-out.\n" );
-        }else{
-
-        }
+            mGstData.asyncStateChange = true; 
+        }     
+    }else if( ! sEnableAsyncStateChange && stateChangeResult == GST_STATE_CHANGE_ASYNC   ) {
+        g_print( " Blocking until pipeline state changes from : %s to %s\n", gst_element_state_get_name( current ), gst_element_state_get_name( targetState ) );
+        GstClockTime timeout = GST_CLOCK_TIME_NONE;
+        stateChangeResult = gst_element_get_state( mGstData.pipeline, &current, &pending, timeout );
+    
     }
 	
     return checkStateChange( stateChangeResult );
@@ -989,7 +1014,7 @@ bool GstPlayer::checkStateChange( GstStateChangeReturn stateChangeResult )
             return true;
         }	
         case GST_STATE_CHANGE_ASYNC: {
-            g_print( "Pipeline state change will happen ASYNC from : %s to %s\n", gst_element_state_get_name( mGstData.currentState ), gst_element_state_get_name ( mGstData.targetState ) );
+            g_print( "Pipeline state change will happen ASYNC format : %s to %s\n", gst_element_state_get_name( mGstData.currentState ), gst_element_state_get_name ( mGstData.targetState ) );
             return true;
         }
         case GST_STATE_CHANGE_NO_PREROLL: {

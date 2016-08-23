@@ -94,6 +94,8 @@ struct GstData {
 	std::atomic<bool> 		loop;
 	std::atomic<bool> 		loopInProgress;
 	std::atomic<bool> 		palindrome;
+	std::atomic<bool> 		newStateRequest;
+	std::atomic<bool> 		asyncStateChange;
 	std::atomic<float> 		rate;
 	std::atomic<bool> 		isStream;
 	std::atomic<float> 		frameRate;
