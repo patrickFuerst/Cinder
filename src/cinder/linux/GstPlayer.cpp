@@ -915,7 +915,7 @@ bool GstPlayer::isStream() const
 bool GstPlayer::sendSeekEvent( gint64 seekTime )
 {
     GstEvent* seekEvent;
-    GstSeekFlags seekFlags = GstSeekFlags( GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE );
+    GstSeekFlags seekFlags = GstSeekFlags( GST_SEEK_FLAG_FLUSH  );
     
     if( getRate() > 0.0 ){
         seekEvent = gst_event_new_seek( getRate(), GST_FORMAT_TIME, seekFlags, GST_SEEK_TYPE_SET, seekTime, GST_SEEK_TYPE_SET, GST_CLOCK_TIME_NONE );
