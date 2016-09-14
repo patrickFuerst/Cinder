@@ -76,7 +76,7 @@ class MovieBase {
 	int32_t		getNumFrames();
 
 	//! Returns whether a movie contains at least one visual track, defined as Video, MPEG, Sprite, QuickDraw3D, Text, or TimeCode tracks
-	bool		hasVisuals() const;
+	bool		hasVisuals() const { return mHasVideo; }
 	//! Returns whether a movie contains at least one audio track, defined as Sound, Music, or MPEG tracks
 	bool		hasAudio() const;
 	//! Returns whether the first video track in the movie contains an alpha channel. Returns false in the absence of visual media.
@@ -126,12 +126,12 @@ class MovieBase {
 	//! Stops playback
 	void		stop();
 	
-	signals::Signal<void()>&	getNewFrameSignal();
-	signals::Signal<void()>&	getReadySignal();
-	signals::Signal<void()>&	getCancelledSignal();
-	signals::Signal<void()>&	getEndedSignal();
-	signals::Signal<void()>&	getJumpedSignal();
-	signals::Signal<void()>&	getOutputWasFlushedSignal();
+	signals::Signal<void()>&	getNewFrameSignal() { return mSignalNewFrame; }
+	signals::Signal<void()>&	getReadySignal() { return mSignalReady; }
+	signals::Signal<void()>&	getCancelledSignal() { return mSignalCancelled; }
+	signals::Signal<void()>&	getEndedSignal() { return mSignalEnded; }
+	signals::Signal<void()>&	getJumpedSignal() { return mSignalJumped; }
+	signals::Signal<void()>&	getOutputWasFlushedSignal() { return mSignalOutputWasFlushed; }
 	
  protected:
 	MovieBase();
@@ -153,6 +153,7 @@ class MovieBase {
 
 	//std::mutex					mMutex;
 	
+	signals::Signal<void()>		mSignalNewFrame, mSignalReady, mSignalCancelled, mSignalEnded, mSignalJumped, mSignalOutputWasFlushed;
 };
 
 typedef std::shared_ptr<class MovieGl> MovieGlRef;

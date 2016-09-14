@@ -7,9 +7,9 @@
  the following conditions are met:
 
  * Redistributions of source code must retain the above copyright notice, this list of conditions and
-	the following disclaimer.
+    the following disclaimer.
  * Redistributions in binary form must reproduce the above copyright notice, this list of conditions and
-	the following disclaimer in the documentation and/or other materials provided with the distribution.
+    the following disclaimer in the documentation and/or other materials provided with the distribution.
 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
  WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
@@ -23,8 +23,11 @@
 
 // Quell the GL macro redefined warnings.
 #if defined( __CLANG__ )
-	#pragma diagnostic push
-	#pragma diagnostic ignored "-Wmacro-redefined"
+    #pragma diagnostic push
+    #pragma diagnostic ignored "-Wmacro-redefined"
+#else // GCC
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wmacro-redefined"  
 #endif
 
 #include "cinder/linux/Movie.h"
@@ -48,7 +51,18 @@ MovieBase::~MovieBase()
 
 void MovieBase::init()
 {
-    // unused
+    if( ! mGstPlayer ) {
+        return;
+    }
+
+    // This here is not correct since with GStreamer in order to be 
+    // able to query video info you must be in a pre-rolled state aka GST_STATE_PAUSED so these queries here will always fail.
+    // Since loading is happening async right now ( i.e we are not waiting for the GST_STATE_PAUSED to complete which is much faster ) on the GstPlayer you have to check if isLoaded before actually requesting any video info.
+
+    //mWidth        = mGstPlayer->width(); 
+    //mHeight       = mGstPlayer->height();
+    //mDuration     = mGstPlayer->getDurationSeconds();
+    
 }
 
 void MovieBase::initFromUrl( const Url& url )
@@ -58,6 +72,8 @@ void MovieBase::initFromUrl( const Url& url )
     }
 
     mGstPlayer->load( url.str() );
+
+    init();
 }
 
 void MovieBase::initFromPath( const fs::path& filePath )
@@ -83,7 +99,8 @@ int32_t MovieBase::getHeight() const
 
 float MovieBase::getPixelAspectRatio() const
 {
-    return mGstPlayer->getPixelAspectRatio();
+    // @TODO: Fix me!
+    return 1.0f;
 }
 
 bool MovieBase::checkPlaythroughOk()
@@ -122,12 +139,8 @@ float MovieBase::getFramerate() const
 
 int32_t MovieBase::getNumFrames()
 {
-    return mGstPlayer->getNumFrames();	
-}
-
-bool MovieBase::hasVisuals() const
-{
-    return mGstPlayer->hasVisuals();
+    // @TODO: Fix me!
+    return 0;   
 }
 
 bool MovieBase::hasAudio() const
@@ -147,12 +160,12 @@ float MovieBase::getCurrentTime() const
 
 void MovieBase::seekToTime( float seconds )
 {
-    mGstPlayer->seekToTime( seconds );
+     mGstPlayer->seekToTime( seconds );
 }
 
 void MovieBase::seekToFrame( int frame )
 {
-    mGstPlayer->seekToFrame( frame );
+
 }
 
 void MovieBase::seekToStart()
@@ -163,7 +176,7 @@ void MovieBase::seekToStart()
 void MovieBase::seekToEnd()
 {
     // This triggers EOS. Probably needs revision.
-    //seekToTime(getDuration());
+    seekToTime(getDuration());
 }
 
 void MovieBase::setActiveSegment( float startTime, float duration )
@@ -183,14 +196,14 @@ void MovieBase::setLoop( bool loop, bool palindrome )
 
 bool MovieBase::stepForward()
 {
-    bool handled = mGstPlayer->stepForward();
-    return handled;	
+    // @TODO: Fix me!
+    return false;   
 }
 
 bool MovieBase::stepBackward()
 {
     // @TODO: Fix me!
-    return false;	
+    return false;   
 }
 
 bool MovieBase::setRate( float rate )
@@ -228,39 +241,34 @@ void MovieBase::stop()
     mGstPlayer->stop();
 }
 
-signals::Signal<void()>&	MovieBase::getNewFrameSignal() { return mGstPlayer->getNewFrameSignal(); }
-signals::Signal<void()>&	MovieBase::getReadySignal() { return mGstPlayer->getReadySignal(); }
-signals::Signal<void()>&	MovieBase::getCancelledSignal() { return mGstPlayer->getCancelledSignal(); }
-signals::Signal<void()>&	MovieBase::getEndedSignal() { return mGstPlayer->getEndedSignal() ; }
-signals::Signal<void()>&	MovieBase::getJumpedSignal() { return mGstPlayer->getJumpedSignal(); }
-signals::Signal<void()>&	MovieBase::getOutputWasFlushedSignal() { return mGstPlayer->getOutputWasFlushedSignal(); }
-
 //! \class MovieGl
 //!
 //!
 MovieGl::MovieGl( const Url& url )
-	: MovieBase()
+    : MovieBase()
 {
-	MovieBase::initFromUrl( url );
+    MovieBase::initFromUrl( url );
 }
 
 MovieGl::MovieGl( const fs::path& path )
-	: MovieBase()
+    : MovieBase()
 {
-	MovieBase::initFromPath( path );
+    MovieBase::initFromPath( path );
 }
 
 MovieGl::~MovieGl()
 {
 }
-	
+    
 gl::TextureRef MovieGl::getTexture()
 {
-	return mGstPlayer->getVideoTexture();
+    return mGstPlayer->getVideoTexture();
 }
 
 }} // namespace cinder::linux
 
 #if defined( __CLANG__ )
-	#pragma diagnostic pop 
+    #pragma diagnostic pop 
+#else // GCC
+    #pragma GCC diagnostic pop
 #endif
