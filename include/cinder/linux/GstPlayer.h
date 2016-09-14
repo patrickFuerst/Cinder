@@ -115,6 +115,9 @@ struct GstData {
 
 	GstElement* 			rawCapsFilter 	= nullptr;
 	GAsyncQueue*			bufferQueue	= nullptr;
+
+	GstBuffer* 				newBuffer  = nullptr;
+
 #endif
 };
 
