@@ -1024,12 +1024,8 @@ void GstPlayer::createTextureFromID()
     g_print( "Creating Texture after lock\n" );
 
 
-   // if(mGstData.currentSample)
-   // 	gst_sample_unref(mGstData.currentSample);
-
-    mGstData.currentSample  =  mGstData.newSample;
-	//mGstData.newSample = nullptr;
-    //GLint textureID =  getTextureID( gst_sample_get_buffer(mGstData.currentSample ));
+   // mGstData.currentSample = mGstData.newSample;
+    GLint textureID =  getTextureID( gst_sample_get_buffer( mGstData.newSample .get() ));
 
     mMutex.unlock();
     g_print( "wrigth after lock\n" );
@@ -1147,11 +1143,8 @@ void GstPlayer::processNewSample( GstSample* sample )
         //     }
         // }
         // Pull the memory buffer from the sample.
-    	if(mGstData.newSample)
-    		gst_sample_unref( mGstData.newSample );
 
-
-        mGstData.newSample =  sample ;
+        mGstData.newSample =  std::shared_ptr<GstSample>(sample , &gst_sample_unref );
 
         // Save the buffer for avoiding override on next sample.
         // The incoming buffer is owened and managed by GStreamer.
@@ -1233,15 +1226,20 @@ void GstPlayer::processNewSample( GstSample* sample )
 
 GLint GstPlayer::getTextureID( GstBuffer* newBuffer )
 {
-	GLint id;
+
+    GLint id = 0;
 #if defined( CINDER_GST_HAS_GL )
     // Map the GL memory for reading. This will give us the texture id that arrives from GStreamer.
-    gst_buffer_map( newBuffer, &mGstData.memoryMapInfo, (GstMapFlags)( GST_MAP_READ | GST_MAP_GL ) ); 
+    //gst_buffer_map( newBuffer, &mGstData.memoryMapInfo, (GstMapFlags)( GST_MAP_READ | GST_MAP_GL ) ); 
+  
+   GstMemory *mem = gst_buffer_peek_memory (newBuffer, 0);
+     g_assert (gst_is_gl_memory (mem));
+     id = ((GstGLMemory *) mem)->tex_id;
 
     // Save the texture ID.
-    id = *(guint*)mGstData.memoryMapInfo.data;
+    //id = *(guint*)mGstData.memoryMapInfo.data;
     // Unmap the memory. 
-    gst_buffer_unmap( newBuffer, &mGstData.memoryMapInfo );
+    //gst_buffer_unmap( newBuffer, &mGstData.memoryMapInfo );
 
     return id;
 #endif

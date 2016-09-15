@@ -120,8 +120,8 @@ struct GstData {
 	GstElement* 			rawCapsFilter 	= nullptr;
 	GAsyncQueue*			bufferQueue	= nullptr;
 
-	GstSample* 				newSample  = nullptr;
-	GstSample* 				currentSample  = nullptr;
+	std::shared_ptr<GstSample> 				newSample;
+	std::shared_ptr<GstSample> 				currentSample;
 
 #endif
 };
