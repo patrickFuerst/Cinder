@@ -371,10 +371,10 @@ bool GstPlayer::initializeGStreamer()
 
 void GstPlayer::unblockStreamingThread()
 {
-    mMutex.lock();
-    mUnblockStreamingThread = true;
-    mMutex.unlock();
-    mStreamingThreadCV.notify_one();
+   // mMutex.lock();
+   // mUnblockStreamingThread = true;
+   // mMutex.unlock();
+   // mStreamingThreadCV.notify_one();
 }
 
 void GstPlayer::resetPipeline()
@@ -526,8 +526,7 @@ void GstPlayer::constructPipeline()
 
     mGstData.appSink    = gst_element_factory_make( "appsink", "videosink" );
     g_object_set (mGstData.appSink, "sync", TRUE, "qos", TRUE,
-      "enable-last-sample", FALSE, "max-lateness", 20 * GST_MSECOND,
-      "signal-handoffs", TRUE, NULL);
+      "enable-last-sample", FALSE, "max-lateness", 20 * GST_MSECOND, NULL);
     
     if( ! mGstData.appSink ) {
         g_printerr( "Failed to create app sink element!\n" );
@@ -832,7 +831,6 @@ void GstPlayer::seekToTime( float seconds )
             return;
         }
     }
-    unblockStreamingThread();
     sendSeekEvent( timeToSeek );
 
     if( ! sEnableAsyncStateChange && getStateChange() == GST_STATE_CHANGE_ASYNC ) {
@@ -1021,27 +1019,27 @@ void GstPlayer::createTextureFromID()
     // if( mGstData.bufferQueue ) {
     //     old = (GstBuffer*)g_async_queue_try_pop( mGstData.bufferQueue );
     // }
+      g_print( "Creating Texture before lock\n" );
     mMutex.lock();
+    g_print( "Creating Texture after lock\n" );
 
-    GLint textureID = mGstTextureID;
 
-    GstBuffer* old  = mGstData.newBuffer;
-	mGstData.newBuffer = nullptr;
-    auto deleter = [ this, old ] ( ci::gl::Texture* texture ) mutable { 
-            if( old ) gst_buffer_unref( old );
-        old = nullptr;
-        delete texture;
-    };
+   // if(mGstData.currentSample)
+   // 	gst_sample_unref(mGstData.currentSample);
+
+    mGstData.currentSample  =  mGstData.newSample;
+	//mGstData.newSample = nullptr;
+    //GLint textureID =  getTextureID( gst_sample_get_buffer(mGstData.currentSample ));
+
     mMutex.unlock();
+    g_print( "wrigth after lock\n" );
 
-    mVideoTexture = ci::gl::Texture::create( GL_TEXTURE_2D, textureID, mGstData.width, mGstData.height, true, deleter );
+    //mVideoTexture = ci::gl::Texture::create( GL_TEXTURE_2D, textureID, mGstData.width, mGstData.height, true );
 
     if( mVideoTexture ) {
         mVideoTexture->setTopDown();
     }
 
-    // Unblock the streaming thread for processing next frame.
-    unblockStreamingThread();
 #endif
 }
 
@@ -1052,7 +1050,7 @@ ci::gl::Texture2dRef GstPlayer::getVideoTexture()
             createTextureFromMemory();
         }
         else {
-            createTextureFromID();
+           createTextureFromID();
         }
         mNewFrame = false;
     }
@@ -1149,13 +1147,11 @@ void GstPlayer::processNewSample( GstSample* sample )
         //     }
         // }
         // Pull the memory buffer from the sample.
+    	if(mGstData.newSample)
+    		gst_sample_unref( mGstData.newSample );
 
-        if( mGstData.newBuffer){
-        	gst_buffer_unref(mGstData.newBuffer);
-        	mGstData.newBuffer = nullptr;
-        }
-        mGstData.newBuffer = gst_sample_get_buffer( sample );
-        gst_buffer_ref(mGstData.newBuffer);
+
+        mGstData.newSample =  sample ;
 
         // Save the buffer for avoiding override on next sample.
         // The incoming buffer is owened and managed by GStreamer.
@@ -1165,23 +1161,21 @@ void GstPlayer::processNewSample( GstSample* sample )
         // The buffer is unref-ed during texture destruction.
         //g_async_queue_push( mGstData.bufferQueue, gst_buffer_ref( newBuffer ) );
 
-        if( newVideo() ) {
-            // Grab video info.
-            GstCaps* currentCaps    = gst_sample_get_caps( sample );
-            gboolean success        = gst_video_info_from_caps( &mGstData.videoInfo, currentCaps );
-            if( success ) {
-                getVideoInfo( mGstData.videoInfo );
-            }
-            ///Reset the new video flag .
-            mGstData.videoHasChanged = false;
-        }
+        // if( newVideo() ) {
+        //     // Grab video info.
+        //     GstCaps* currentCaps    = gst_sample_get_caps( sample );
+        //     gboolean success        = gst_video_info_from_caps( &mGstData.videoInfo, currentCaps );
+        //     if( success ) {
+        //         getVideoInfo( mGstData.videoInfo );
+        //     }
+        //     ///Reset the new video flag .
+        //     mGstData.videoHasChanged = false;
+        // }
 
         // We 've saved the buffer in the queue so unref the sample.
-         gst_sample_unref( sample );
-         sample = nullptr;
-
+       
         // Map the memory and update texture id.
-        updateTextureID( mGstData.newBuffer );
+     //   updateTextureID( mGstData.newBuffer );
         mMutex.unlock();
 
         mNewFrame = true;
@@ -1234,19 +1228,22 @@ void GstPlayer::processNewSample( GstSample* sample )
  //   mStreamingThreadCV.wait_until( uniqueLock, now + frameInterval, [ this ]{ return mUnblockStreamingThread.load(); } );
 
    
-    mUnblockStreamingThread = false;
+  //  mUnblockStreamingThread = false;
 }
 
-void GstPlayer::updateTextureID( GstBuffer* newBuffer )
+GLint GstPlayer::getTextureID( GstBuffer* newBuffer )
 {
+	GLint id;
 #if defined( CINDER_GST_HAS_GL )
     // Map the GL memory for reading. This will give us the texture id that arrives from GStreamer.
     gst_buffer_map( newBuffer, &mGstData.memoryMapInfo, (GstMapFlags)( GST_MAP_READ | GST_MAP_GL ) ); 
 
     // Save the texture ID.
-    mGstTextureID = *(guint*)mGstData.memoryMapInfo.data;
+    id = *(guint*)mGstData.memoryMapInfo.data;
     // Unmap the memory. 
     gst_buffer_unmap( newBuffer, &mGstData.memoryMapInfo );
+
+    return id;
 #endif
 }
 

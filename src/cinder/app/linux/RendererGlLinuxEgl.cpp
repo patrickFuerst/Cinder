@@ -27,8 +27,11 @@
 #include "cinder/gl/Context.h"
 #include "cinder/gl/Environment.h"
 
+
+
 #include <bcm_host.h>
 #include <EGL/egl.h>
+#include <gst/gl/egl/gstgldisplay_egl.h>
 
 namespace cinder { namespace app {
 
@@ -76,7 +79,7 @@ bool RendererGlLinux::initialize( void *window, RendererRef sharedRenderer )
 	}
 
 	EGLint configCount;
-	if( ! eglChooseConfig( mDisplay, configAttribs.data(), &mConfig, 1, &configCount ) || (configCount != 1) ) {
+	if( ! eglSaneChooseConfigBRCM( mDisplay, configAttribs.data(), &mConfig, 1, &configCount ) || (configCount != 1) ) {
 		return false;
 	}
 

@@ -7,6 +7,10 @@
 
 #include <iostream>
 
+
+/* Required by the RPi implementation */
+#define OMX_SKIP64BIT 1
+
 #include <gst/gst.h>
 #include <gst/app/gstappsink.h>
 #include <gst/video/video.h>
@@ -116,7 +120,8 @@ struct GstData {
 	GstElement* 			rawCapsFilter 	= nullptr;
 	GAsyncQueue*			bufferQueue	= nullptr;
 
-	GstBuffer* 				newBuffer  = nullptr;
+	GstSample* 				newSample  = nullptr;
+	GstSample* 				currentSample  = nullptr;
 
 #endif
 };
@@ -216,7 +221,7 @@ private:
 
 	void 			createTextureFromMemory();
 	void 			createTextureFromID();
-	void 			updateTextureID( GstBuffer* newBuffer );
+	GLint 			getTextureID( GstBuffer* newBuffer );
 
 	void 			unblockStreamingThread();
 private:
@@ -235,7 +240,6 @@ private:
 	unsigned char* 	    	mFrontVBuffer = nullptr;
 	unsigned char* 		mBackVBuffer = nullptr;		
 
-	GLint 			mGstTextureID;
 
 	std::atomic<bool>	mNewFrame;
 	std::atomic<bool>	mUnblockStreamingThread;
