@@ -1119,12 +1119,12 @@ void GstPlayer::getVideoMeta( GstVideoMeta * videoMeta )
 void GstPlayer::processNewBuffer( GstBuffer* newBuffer )
 {
     //GstBuffer* newBuffer = nullptr;
+	mMutex.lock();
 
     mGstData.isPrerolled = true;
 
     if( sUseGstGl ) {
 #if defined( CINDER_GST_HAS_GL )
-		mMutex.lock();
         // Keep only the last buffer around.
         if( mGstData.bufferQueue ) {
             if( g_async_queue_length( mGstData.bufferQueue ) >= 2 ){
@@ -1163,10 +1163,12 @@ void GstPlayer::processNewBuffer( GstBuffer* newBuffer )
 
         // Map the memory and update texture id.
         updateTextureID( newBuffer );
-		mMutex.unlock();
         mNewFrame = true;
 #endif
     }
+	
+	mMutex.unlock();
+
 //    else {
 //        mMutex.lock();
 //
