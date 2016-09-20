@@ -105,7 +105,7 @@ struct GstData {
 	std::atomic<float>		pixelAspectRatio;
 
 	GstMapInfo 			memoryMapInfo; // Memory map that holds the incoming frame.
-	GstVideoInfo 			videoInfo; // For retrieving video info.
+	GstVideoMeta 			videoMeta; // For retrieving video info.
 	GstElement* 			pipeline 	= nullptr; 
 	GstElement* 			appSink 	= nullptr; 
 	GstElement* 			videoBin 	= nullptr; 		
@@ -120,8 +120,8 @@ struct GstData {
 	GstElement* 			rawCapsFilter 	= nullptr;
 	GAsyncQueue*			bufferQueue	= nullptr;
 
-	std::shared_ptr<GstSample> 				newSample;
-	std::shared_ptr<GstSample> 				currentSample;
+	std::shared_ptr<GstBuffer> 				newBuffer;
+	std::shared_ptr<GstBuffer> 				currentBuffer;
 
 #endif
 };
@@ -195,10 +195,10 @@ private:
 	void 			startGMainLoop( GMainLoop* loop );
 	
 	static void 		onGstEos( GstAppSink* sink, gpointer userData );
-	static GstFlowReturn 	onGstSample( GstAppSink* sink, gpointer userData );
-	static GstFlowReturn	onGstPreroll( GstAppSink* sink, gpointer userData );
-	void 			processNewSample( GstSample* sample );
-	void 			getVideoInfo( const GstVideoInfo& videoInfo );
+	static void 	onGstSample( GstElement * fakesink, GstBuffer * buffer, GstPad * pad, gpointer user_data );
+	static void  	onGstPreroll(GstElement * fakesink, GstBuffer * buffer, GstPad * pad, gpointer user_data );
+	void 			processNewSample( GstBuffer* sample );
+	void 			getVideoMeta( GstVideoMeta* videoMeta );
 	
 	bool 		        setPipelineState( GstState targetState );
 	bool 			checkStateChange( GstStateChangeReturn stateChangeResult );
