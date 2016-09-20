@@ -23,7 +23,7 @@
 namespace gst { namespace video {
 
 static bool         sUseGstGl = false;
-static const int    sEnableAsyncStateChange = true;
+static const int    sEnableAsyncStateChange = false;
 
 GstData::GstData()
     : isPaused( false ),
@@ -1114,7 +1114,6 @@ void GstPlayer::getVideoMeta( GstVideoMeta * videoMeta )
     mGstData.height             = videoMeta->height;
     mGstData.videoFormat        = videoMeta->format;
 	
-	CI_LOG_I("Video with SIZE " << mGstData.width  << "x" << mGstData.height );
     //mGstData.frameRate      = (float)videoMeta.fps_n / (float)videoMeta.fps_d;
    //mGstData.pixelAspectRatio   = (float)videoMeta.par_n / (float)videoMeta.par_d ;
     //mGstData.fpsNom             = videoMeta.fps_n;
