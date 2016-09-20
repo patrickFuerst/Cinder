@@ -37,10 +37,10 @@
 		// Avoid GL include clashes with glload.
 		#undef GST_GL_HAVE_OPENGL
 	#endif
+	#define GST_GL_HAVE_GLSYNC TRUE  // This a bug in gstreamer bad ?
 
 	#include <gst/gl/gstglcontext.h>
 	#include <gst/gl/gstgldisplay.h>
-
 	#if defined( CINDER_LINUX_EGL_ONLY )
 		#include <gst/gl/egl/gstgldisplay_egl.h>
 	#elif defined( CINDER_LINUX )
