@@ -864,7 +864,7 @@ class ReceiverTcp : public ReceiverBase {
 	//! Helper which handles any errors happening to the acceptor.
 	void handleAcceptorError( const asio::error_code &error );
 	//! Helper which handles any errors with the connection.
-	void handleSocketError( const asio::error_code &error, uint64_t originator, const asio::ip::tcp::endpoint &endpoint );
+	void handleSocketError( const asio::error_code &error, uint64_t originator );
 	
 	AcceptorRef			mAcceptor;
 	protocol::endpoint	mLocalEndpoint;

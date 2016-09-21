@@ -1411,7 +1411,7 @@ void ReceiverTcp::Connection::shutdown( asio::socket_base::shutdown_type shutdow
 	mIsConnected.store( false );
 	// the other side may have already shutdown the connection.
 	if( ec && ec != asio::error::not_connected )
-		mReceiver->handleSocketError( ec, mIdentifier, mSocket->remote_endpoint() );
+		mReceiver->handleSocketError( ec, mIdentifier );
 }
 	
 using iterator = asio::buffers_iterator<asio::streambuf::const_buffers_type>;
@@ -1447,7 +1447,7 @@ void ReceiverTcp::Connection::read()
 	asio::async_read_until( *mSocket, mBuffer, match,
 	[&, receiver]( const asio::error_code &error, size_t bytesTransferred ) {
 		if( error ) {
-			receiver->handleSocketError( error, mIdentifier, mSocket->remote_endpoint() );
+			receiver->handleSocketError( error, mIdentifier );
 			receiver->closeConnection( mIdentifier );
 		}
 		else {
@@ -1619,13 +1619,13 @@ void ReceiverTcp::closeConnection( uint64_t connectionIdentifier, asio::socket_b
 	}
 }
 	
-void ReceiverTcp::handleSocketError( const asio::error_code &error, uint64_t originatorId, const asio::ip::tcp::endpoint &endpoint )
+void ReceiverTcp::handleSocketError( const asio::error_code &error, uint64_t originatorId  )
 {
 	std::lock_guard<std::mutex> lock( mSocketTransportErrorFnMutex );
 	if( mSocketTransportErrorFn )
 		mSocketTransportErrorFn( error, originatorId );
 	else
-		CI_LOG_E( error.message() << ", didn't receive message from " << endpoint.address().to_string() );
+		CI_LOG_E( "Socker Error: " << error.message()  );
 }
 	
 void ReceiverTcp::handleAcceptorError( const asio::error_code &error )
