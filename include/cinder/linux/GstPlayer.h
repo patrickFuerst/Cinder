@@ -23,6 +23,7 @@
 
 #include "cinder/gl/Texture.h"
 #include "cinder/gl/Context.h"
+#include "cinder/Signals.h"
 
 #if GST_CHECK_VERSION(1, 4, 5)
 	#include <gst/gl/gstglconfig.h>
@@ -95,6 +96,7 @@ struct GstData {
 	std::atomic<gint64> 		requestedSeekTime;
 	std::atomic<bool> 		requestedSeek;
 	std::atomic<bool> 		loop;
+	std::atomic<bool> 		loopInProgress;
 	std::atomic<bool> 		palindrome;
 	std::atomic<float> 		rate;
 	std::atomic<bool> 		isStream;
@@ -185,6 +187,10 @@ public:
 	bool 			isStream() const;
 
 	ci::gl::Texture2dRef	getVideoTexture();
+	
+	ci::signals::Signal<void()>&	getLoopedSignal() { return mSignalLooped; }
+
+	void 			looped();
 
 private:		
 	bool 			initializeGStreamer();
@@ -244,6 +250,8 @@ private:
 	std::atomic<bool>	mNewFrame;
 	std::atomic<bool>	mUnblockStreamingThread;
 	std::condition_variable	mStreamingThreadCV;
+	
+	ci::signals::Signal<void()>		mSignalLooped;
 };
 	
 }} // namespace gst::video
