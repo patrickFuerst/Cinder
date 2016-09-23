@@ -191,6 +191,7 @@ public:
 	ci::signals::Signal<void()>&	getLoopedSignal() { return mSignalLooped; }
 
 	void 			looped();
+	bool			sendSeekEvent( gint64 seekTime, GstSeekFlags seekFlags = GstSeekFlags(  GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE)   );
 
 private:		
 	bool 			initializeGStreamer();
@@ -212,8 +213,6 @@ private:
 
 	GstState 		getCurrentState();
 	GstState 		getPendingState();
-
-	bool			sendSeekEvent( gint64 seekTime );
 	
 	void			addBusWatch( GstElement* pipeline );
 

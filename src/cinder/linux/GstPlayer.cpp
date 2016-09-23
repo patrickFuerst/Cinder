@@ -226,6 +226,7 @@ gboolean checkBusMessages( GstBus* bus, GstMessage* message, gpointer userData )
         }
 
         case GST_MESSAGE_STATE_CHANGED: {
+            g_print( "Pipeline state changed !!!!\n");
             if( GST_MESSAGE_SRC( message ) == GST_OBJECT( data.pipeline ) ) {
 
                 GstState old, current, pending;
@@ -245,21 +246,34 @@ gboolean checkBusMessages( GstBus* bus, GstMessage* message, gpointer userData )
             g_print( "ASYNC Done Message \n" );
 
             if( data.player ) data.position = data.player->getPositionNanos();
-
+            
             switch( data.currentState ) {
                     case GST_STATE_PAUSED: {
                             if( data.requestedSeek  ) {
                                 if( data.player ) data.player->seekToTime( data.requestedSeekTime );
                                     data.requestedSeek = false;
                                 }
+
                             break;
+
                     }
                     default: break;
             }
             break;
         }
+        case GST_MESSAGE_SEGMENT_DONE: {
+            g_print( "SEGMENT Done Message \n" );
+            data.player->sendSeekEvent( data.player->getDurationNanos() , GstSeekFlags( GST_SEEK_FLAG_SEGMENT ) );
+            g_print( "loop seek send \n" );
+        
+            data.videoHasChanged = false;
+            data.isDone = false;
+            break;
+        }
+
 
         case GST_MESSAGE_EOS: {
+            g_print( "EOS message !!!!\n");
             if( data.loop ) {
                 if( data.palindrome && ! data.isStream && ! data.isLive ) {
                     // Toggle the direction we are playing.
@@ -649,6 +663,11 @@ void GstPlayer::load( const std::string& path )
 
     // and preroll.
     setPipelineState( GST_STATE_PAUSED );
+
+    //if( mGstData.loop ){
+    g_print( "Initial Segment seek\n" );
+    mGstData.player->sendSeekEvent( 0 , GstSeekFlags( GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_SEGMENT ) );
+    //}
 }
 
 void GstPlayer::looped()
@@ -848,6 +867,7 @@ void GstPlayer::seekToTime( float seconds )
             return;
         }
     }
+
     sendSeekEvent( timeToSeek );
 
     if( ! sEnableAsyncStateChange && getStateChange() == GST_STATE_CHANGE_ASYNC ) {
@@ -911,10 +931,9 @@ bool GstPlayer::isStream() const
     return mGstData.isStream;
 }
 
-bool GstPlayer::sendSeekEvent( gint64 seekTime )
+bool GstPlayer::sendSeekEvent( gint64 seekTime, GstSeekFlags seekFlags )
 {
     GstEvent* seekEvent;
-    GstSeekFlags seekFlags = GstSeekFlags( GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE );
     
     if( getRate() > 0.0 ){
         seekEvent = gst_event_new_seek( getRate(), GST_FORMAT_TIME, seekFlags, GST_SEEK_TYPE_SET, seekTime, GST_SEEK_TYPE_SET, GST_CLOCK_TIME_NONE );
