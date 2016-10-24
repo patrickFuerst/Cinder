@@ -21,6 +21,8 @@
 
 namespace gst { namespace video {
 
+static GstGLDisplay* sGstGLDisplay = nullptr;
+
 static bool         sUseGstGl = false;
 static const int    sEnableAsyncStateChange = false;
 
@@ -127,7 +129,7 @@ gboolean checkBusMessages( GstBus* bus, GstMessage* message, gpointer userData )
 
     GstData & data = *( static_cast<GstData*>( userData ) );
     
-    switch ( GST_MESSAGE_TYPE( message ) )
+    switch( GST_MESSAGE_TYPE( message ) )
     {
         case GST_MESSAGE_ERROR: {
             GError *err = nullptr;
@@ -171,7 +173,7 @@ gboolean checkBusMessages( GstBus* bus, GstMessage* message, gpointer userData )
             GstContext* context = nullptr;
             if( g_strcmp0( context_type, GST_GL_DISPLAY_CONTEXT_TYPE ) == 0 ) {
                 context = gst_context_new( GST_GL_DISPLAY_CONTEXT_TYPE, TRUE );
-                gst_context_set_gl_display( context, data.display );
+                gst_context_set_gl_display( context, sGstGLDisplay );
                 gst_element_set_context( GST_ELEMENT( message->src ), context );
             }
             else if( g_strcmp0( context_type, "gst.gl.app_context" ) == 0 ) {
@@ -378,14 +380,15 @@ void GstPlayer::resetPipeline()
     gst_object_unref( GST_OBJECT( mGstData.pipeline ) );
     mGstData.pipeline = nullptr;
     
+    mGstData.videoBin = nullptr;
     if( sUseGstGl ) {
 #if defined( CINDER_GST_HAS_GL )
-        mGstData.videoBin = nullptr;
+        gst_object_unref( mGstData.context );	
         mGstData.context = nullptr;
-        mGstData.display = nullptr;
+        gst_object_unref( sGstGLDisplay );
+        // Pipeline will unref and destroy its children..
         mGstData.glupload = nullptr;
         mGstData.glcolorconvert = nullptr;
-        resetGLBuffers(); // GstBuffers need to be flushed here if we are destroying the pipeline.
 #endif
     }
 }
@@ -459,24 +462,41 @@ bool GstPlayer::initialize()
 {		
 #if defined( CINDER_GST_HAS_GL ) 
     if( sUseGstGl ) {
+        // On the first run ref count = 1, from then on we need to ref it in order to keep
+        // the display alive until the last object is destroyed.
+        bool holdDisplayRef = false;
 #if defined( CINDER_LINUX )
-        auto platformData   = std::dynamic_pointer_cast<ci::gl::PlatformDataLinux>( ci::gl::context()->getPlatformData() );
+        auto platformData = std::dynamic_pointer_cast<ci::gl::PlatformDataLinux>( ci::gl::context()->getPlatformData() );
 #if defined( CINDER_LINUX_EGL_ONLY )
-        mGstData.display    = (GstGLDisplay*) gst_gl_display_egl_new_with_egl_display( platformData->mDisplay );
-        mGstData.context    = gst_gl_context_new_wrapped( (GstGLDisplay*)mGstData.display, (guintptr)platformData->mContext, GST_GL_PLATFORM_EGL, GST_GL_API_GLES2 );
+        if( ! sGstGLDisplay ) 
+            sGstGLDisplay = (GstGLDisplay*) gst_gl_display_egl_new_with_egl_display( platformData->mDisplay );
+        else 
+            holdDisplayRef = true;
+
+        mGstData.context  = gst_gl_context_new_wrapped( sGstGLDisplay, (guintptr)platformData->mContext, GST_GL_PLATFORM_EGL, GST_GL_API_GLES2 );
 #else
-        mGstData.display    = (GstGLDisplay*) gst_gl_display_x11_new_with_display( ::glfwGetX11Display() );
+        if( ! sGstGLDisplay ) 
+            sGstGLDisplay = (GstGLDisplay*) gst_gl_display_x11_new_with_display( ::glfwGetX11Display() );
+        else 
+            holdDisplayRef = true;
   #if defined( CINDER_GL_ES )
-        mGstData.context    = gst_gl_context_new_wrapped( (GstGLDisplay*)mGstData.display, (guintptr)::glfwGetEGLContext( platformData->mContext ), GST_GL_PLATFORM_GLX, GST_GL_API_GLES2 );
+        mGstData.context  = gst_gl_context_new_wrapped( sGstGLDisplay, (guintptr)::glfwGetEGLContext( platformData->mContext ), GST_GL_PLATFORM_GLX, GST_GL_API_GLES2 );
   #else
-        mGstData.context    = gst_gl_context_new_wrapped( (GstGLDisplay*)mGstData.display, (guintptr)::glfwGetGLXContext( platformData->mContext ), GST_GL_PLATFORM_GLX, GST_GL_API_OPENGL );
+        mGstData.context  = gst_gl_context_new_wrapped( sGstGLDisplay, (guintptr)::glfwGetGLXContext( platformData->mContext ), GST_GL_PLATFORM_GLX, GST_GL_API_OPENGL );
   #endif 
 #endif 
 #elif defined( CINDER_MAC )
-   	 mGstData.display   = gst_gl_display_new ();
-	 auto platformData  = std::dynamic_pointer_cast<ci::gl::PlatformDataMac>( ci::gl::context()->getPlatformData() );
-	 mGstData.context   = gst_gl_context_new_wrapped( GST_GL_DISPLAY( mGstData.display ), (guintptr)platformData->mCglContext, GST_GL_PLATFORM_CGL, GST_GL_API_OPENGL );
+        if( ! sGstGLDisplay ) 
+            sGstGLDisplay = gst_gl_display_new ();
+        else 
+            holdDisplayRef = true;
+
+        auto platformData = std::dynamic_pointer_cast<ci::gl::PlatformDataMac>( ci::gl::context()->getPlatformData() );
+        mGstData.context  = gst_gl_context_new_wrapped( sGstGLDisplay, (guintptr)platformData->mCglContext, GST_GL_PLATFORM_CGL, GST_GL_API_OPENGL );
 #endif
+        if( holdDisplayRef ) {
+            gst_object_ref( sGstGLDisplay );
+        }
     }
 #endif // defined( CINDER_GST_HAS_GL )
     return true;
@@ -522,7 +542,7 @@ void GstPlayer::constructPipeline()
         appSinkCallbacks.new_preroll 	= onGstPreroll;
         appSinkCallbacks.new_sample  	= onGstSample;
 
-	std::string capsDescr = "video/x-raw(memory:GLMemory), format=RGBA";
+        std::string capsDescr = "video/x-raw(memory:GLMemory), format=RGBA";
         if( ! sUseGstGl ) {
             capsDescr = "video/x-raw, format=RGBA";
         }
@@ -544,7 +564,11 @@ void GstPlayer::constructPipeline()
         if( ! mGstData.glcolorconvert ) g_printerr( "Failed to create GL convert element!\n" );
 
         mGstData.rawCapsFilter	    = gst_element_factory_make( "capsfilter", "rawcapsfilter" );
+#if defined( CINDER_LINUX_EGL_ONLY ) && defined( CINDER_GST_HAS_GL )
+        if( mGstData.rawCapsFilter ) g_object_set( G_OBJECT( mGstData.rawCapsFilter ), "caps", gst_caps_from_string( "video/x-raw(memory:GLMemory)" ), nullptr );
+#else
         if( mGstData.rawCapsFilter ) g_object_set( G_OBJECT( mGstData.rawCapsFilter ), "caps", gst_caps_from_string( "video/x-raw" ), nullptr );
+#endif
         else g_printerr( "Failed to create raw caps filter element!\n" );
 
         gst_bin_add_many( GST_BIN( mGstData.videoBin ),  mGstData.rawCapsFilter, mGstData.glupload, mGstData.glcolorconvert, mGstData.appSink, nullptr );
@@ -682,7 +706,8 @@ float GstPlayer::getFramerate() const
 
 bool GstPlayer::hasAudio() const
 {
-    if( ! mGstData.pipeline ) return false;
+    if( ! mGstData.pipeline ) 
+        return false;
 
     gint numAudioChannels = 0;
     g_object_get( G_OBJECT( mGstData.pipeline ), "n-audio", &numAudioChannels, nullptr );
@@ -691,7 +716,8 @@ bool GstPlayer::hasAudio() const
 
 bool GstPlayer::hasVisuals() const
 {
-    if( ! mGstData.pipeline ) return false;
+    if( ! mGstData.pipeline ) 
+        return false;
 
     gint numVideoStreams = 0;
     g_object_get( G_OBJECT( mGstData.pipeline ), "n-video", &numVideoStreams, nullptr );
@@ -700,7 +726,8 @@ bool GstPlayer::hasVisuals() const
 
 gint64 GstPlayer::getDurationNanos()
 {
-    if( ! mGstData.pipeline ) return -1;
+    if( ! mGstData.pipeline ) 
+        return -1;
     
     if( ! sEnableAsyncStateChange ) {
         gst_element_get_state( mGstData.pipeline, nullptr, nullptr, GST_CLOCK_TIME_NONE );
@@ -714,7 +741,7 @@ gint64 GstPlayer::getDurationNanos()
         }
         mGstData.duration = duration;
     }
-    else{
+    else {
         mGstData.duration = -1;
         g_warning( "Cannot query duration ! Pipeline is NOT PRE-ROLLED" );
     }
@@ -740,7 +767,8 @@ float GstPlayer::getPixelAspectRatio() const
 
 gint64 GstPlayer::getPositionNanos()
 {
-    if( !mGstData.pipeline ) return -1;
+    if( ! mGstData.pipeline ) 
+        return -1;
 
     if( ! sEnableAsyncStateChange ) {
         gst_element_get_state( mGstData.pipeline, nullptr, nullptr, GST_CLOCK_TIME_NONE );
@@ -769,13 +797,17 @@ float GstPlayer::getPositionSeconds()
 
 void GstPlayer::setVolume( float targetVolume )
 {
-    if( ! mGstData.pipeline ) return;
+    if( ! mGstData.pipeline ) 
+        return;
+
     g_object_set( G_OBJECT( mGstData.pipeline ), "volume", (gdouble)targetVolume, nullptr );
 }
 
 float GstPlayer::getVolume()
 {
-    if( ! mGstData.pipeline ) return -1;
+    if( ! mGstData.pipeline )
+        return -1;
+
     float currentVolume;
     g_object_get( G_OBJECT( mGstData.pipeline ), "volume", &currentVolume, nullptr );
     return currentVolume;
@@ -788,7 +820,8 @@ bool GstPlayer::isDone() const
 
 void GstPlayer::seekToTime( float seconds )
 {
-    if( ! mGstData.pipeline ) return;
+    if( ! mGstData.pipeline )
+        return;
 
     auto timeToSeek = seconds*GST_SECOND;
 
@@ -812,7 +845,9 @@ void GstPlayer::seekToTime( float seconds )
 
 void GstPlayer::seekToFrame( int frame )
 {
-    if( ! mGstData.pipeline ) return;
+    if( ! mGstData.pipeline ) 
+        return;
+
     auto timeToSeek = (float)frame * (float)mGstData.fpsDenom / (float)mGstData.fpsNom;
     seekToTime( timeToSeek );
 }
@@ -831,9 +866,11 @@ void GstPlayer::setLoop( bool loop, bool palindrome )
 
 bool GstPlayer::setRate( float rate )
 {
-    if( rate == getRate() ) return true; // Avoid unnecessary rate change;
+    if( rate == getRate() ) 
+        return true; // Avoid unnecessary rate change;
+
     // A rate equal to 0 is not valid and has to be handled by pausing the pipeline.
-    if( rate == 0.0f ){
+    if( rate == 0.0f ) {
         return setPipelineState( GST_STATE_PAUSED );
     }
     
@@ -869,7 +906,7 @@ bool GstPlayer::sendSeekEvent( gint64 seekTime )
     GstEvent* seekEvent;
     GstSeekFlags seekFlags = GstSeekFlags( GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE );
     
-    if( getRate() > 0.0 ){
+    if( getRate() > 0.0 ) {
         seekEvent = gst_event_new_seek( getRate(), GST_FORMAT_TIME, seekFlags, GST_SEEK_TYPE_SET, seekTime, GST_SEEK_TYPE_SET, GST_CLOCK_TIME_NONE );
     }
     else {
@@ -878,7 +915,7 @@ bool GstPlayer::sendSeekEvent( gint64 seekTime )
 	
     gboolean successSeek = gst_element_send_event( mGstData.pipeline, seekEvent );
 	
-    if( ! successSeek ){
+    if( ! successSeek ) {
         g_warning("seek failed");
         return false;
     }
@@ -965,12 +1002,12 @@ bool GstPlayer::checkStateChange( GstStateChangeReturn stateChangeResult )
 
 void GstPlayer::createTextureFromMemory()
 {
-    mMutex.lock();
+    std::unique_lock<std::mutex> guard( mMutex );
     std::swap( mFrontVBuffer, mBackVBuffer );
-    mMutex.unlock();
+    guard.unlock();
 
     if( mFrontVBuffer ) {
-        mVideoTexture = ci::gl::Texture::create( mFrontVBuffer, GL_RGBA, width(), height() );
+        mVideoTexture = ci::gl::Texture::create( mFrontVBuffer.get(), GL_RGBA, width(), height() );
         if( mVideoTexture ) mVideoTexture->setTopDown();
     }
 }
@@ -978,15 +1015,14 @@ void GstPlayer::createTextureFromMemory()
 void GstPlayer::createTextureFromID()
 {
 #if defined( CINDER_GST_HAS_GL )
-    mMutex.lock();
+    std::unique_lock<std::mutex> guard( mMutex );
     std::swap( mCurrentBuffer, mNewBuffer );
-    mMutex.unlock();
+    guard.unlock();
 
     GLint textureID = getTextureID( mCurrentBuffer.get() );
 
-    mVideoTexture = ci::gl::Texture::create( GL_TEXTURE_2D, textureID, mGstData.width, mGstData.height, true );
-
-    if( mVideoTexture ) {
+    if( textureID != 0 ) {
+        mVideoTexture = ci::gl::Texture::create( GL_TEXTURE_2D, textureID, mGstData.width, mGstData.height, true );
         mVideoTexture->setTopDown();
     }
 #endif
@@ -995,9 +1031,11 @@ void GstPlayer::createTextureFromID()
 GLint GstPlayer::getTextureID( GstBuffer* newBuffer )
 {
     GLint id = 0;
+    if( ! newBuffer ) 
+        return id;
 #if defined( CINDER_GST_HAS_GL )
-    GstMemory *mem = gst_buffer_peek_memory (newBuffer, 0);
-    g_assert (gst_is_gl_memory (mem));
+    GstMemory *mem = gst_buffer_peek_memory( newBuffer, 0 );
+    g_assert( gst_is_gl_memory( mem ) );
     id = ((GstGLMemory *) mem)->tex_id;
 #endif
     return id;
@@ -1029,31 +1067,27 @@ void GstPlayer::resetVideoBuffers()
 
 void GstPlayer::resetGLBuffers()
 {
-    mMutex.lock();
+    std::lock_guard<std::mutex> guard( mMutex );
     if( mCurrentBuffer ) {
         mCurrentBuffer.reset(); 
     }
     if( mNewBuffer ) {
         mNewBuffer.reset();
     }
-    mMutex.unlock();
 }
 
 void GstPlayer::resetSystemMemoryBuffers()
 {
-    mMutex.lock();
+    std::lock_guard<std::mutex> guard( mMutex );
     // Take care of the front buffer.
     if( mFrontVBuffer ) {
-        delete mFrontVBuffer;
-        mFrontVBuffer = nullptr;
+        mFrontVBuffer.reset();
     }
 
     // Take care of the back buffer.
     if( mBackVBuffer ) {
-        delete mBackVBuffer;
-        mBackVBuffer = nullptr;
+        mBackVBuffer.reset();
     }
-    mMutex.unlock();
 }
 
 void GstPlayer::onGstEos( GstAppSink* sink, gpointer userData )
@@ -1094,9 +1128,9 @@ void GstPlayer::processNewSample( GstSample* sample )
     if( sUseGstGl ) {
 #if defined( CINDER_GST_HAS_GL )
         // Pull the memory buffer from the sample.
-        mMutex.lock();
+        std::unique_lock<std::mutex> guard( mMutex );
         mNewBuffer = std::shared_ptr<GstBuffer>( gst_buffer_ref( gst_sample_get_buffer( sample ) ), &gst_buffer_unref );
-        mMutex.unlock();
+        guard.unlock();
 
         if( newVideo() ) {
             // Grab video info.
@@ -1117,7 +1151,7 @@ void GstPlayer::processNewSample( GstSample* sample )
 #endif
     }
     else {
-        mMutex.lock();
+        std::unique_lock<std::mutex> guard( mMutex );
 
         newBuffer = gst_sample_get_buffer( sample );
         gst_buffer_map( newBuffer, &mGstData.memoryMapInfo, GST_MAP_READ ); // Map the buffer for reading the data.
@@ -1129,26 +1163,28 @@ void GstPlayer::processNewSample( GstSample* sample )
             if( success ) {
                 getVideoInfo( mGstData.videoInfo );
             }
-
+            auto deleter = []( unsigned char* p ) {
+                delete [] p;
+            };
             if( ! mFrontVBuffer ) {
-                mFrontVBuffer = new unsigned char[ mGstData.memoryMapInfo.size ];
+                mFrontVBuffer = std::shared_ptr<unsigned char>( new unsigned char[ mGstData.memoryMapInfo.size ], deleter );
             }
 			
             if( ! mBackVBuffer ) {
-                mBackVBuffer = new unsigned char[ mGstData.memoryMapInfo.size ];
+                mBackVBuffer = std::shared_ptr<unsigned char>( new unsigned char[ mGstData.memoryMapInfo.size ], deleter );
             }
 			
             ///Reset the new video flag .
             mGstData.videoHasChanged = false;
         }
 
-        memcpy( mBackVBuffer, mGstData.memoryMapInfo.data, mGstData.memoryMapInfo.size );
+        memcpy( mBackVBuffer.get(), mGstData.memoryMapInfo.data, mGstData.memoryMapInfo.size );
 		
         gst_buffer_unmap( newBuffer, &mGstData.memoryMapInfo ); 
 
         mNewFrame = true;
 
-        mMutex.unlock();
+        guard.unlock();
 
         // Finished working with the sample - unref-it.
         gst_sample_unref( sample );
