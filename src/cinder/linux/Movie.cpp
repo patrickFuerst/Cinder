@@ -168,12 +168,12 @@ void MovieBase::seekToEnd()
 
 void MovieBase::setActiveSegment( float startTime, float duration )
 {
-
+	mGstPlayer->setActiveSegment(startTime,duration);
 }
 
 void MovieBase::resetActiveSegment()
 {
-
+	mGstPlayer->resetActiveSegment();
 }
 
 void MovieBase::setLoop( bool loop, bool palindrome )

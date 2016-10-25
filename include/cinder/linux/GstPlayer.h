@@ -99,6 +99,8 @@ struct GstData {
 	std::atomic<int>		fpsNom;
 	std::atomic<int>		fpsDenom;
 	std::atomic<float>		pixelAspectRatio;
+	std::atomic<float>		segmentStart;
+	std::atomic<float>		segmentEnd;
 
 	GstMapInfo 			memoryMapInfo; // Memory map that holds the incoming frame.
 	GstVideoInfo 			videoInfo; // For retrieving video info.
@@ -144,7 +146,9 @@ public:
 	void 			setLoop( bool loop = true, bool palindrome = false );
 	bool 			setRate( float rate );
 	bool 			stepForward();
-	
+	void			setActiveSegment( float startTime, float duration );
+	void			resetActiveSegment();
+
 	float 			getRate() const;
 	
 	bool 			hasNewFrame() const;
@@ -197,8 +201,8 @@ private:
 	GstState 		getCurrentState();
 	GstState 		getPendingState();
 
-	bool			sendSeekEvent( gint64 seekTime );
-	
+	bool			sendSeekEvent( gint64 seekTime, GstSeekFlags flags = GstSeekFlags( GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE ) );
+
 	void			addBusWatch( GstElement* pipeline );
 
 	void 			resetCustomPipeline();
@@ -211,6 +215,8 @@ private:
 
 	void 			createTextureFromMemory();
 	void 			createTextureFromID();
+	
+	static gboolean 		checkBusMessages( GstBus* bus, GstMessage* message, gpointer userData );
 
 private:
 	GMainLoop* 		mGMainLoop; // Needed for message activation since we are not using signals.
