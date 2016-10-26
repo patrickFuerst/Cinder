@@ -891,9 +891,12 @@ bool GstPlayer::stepForward()
 
 void GstPlayer::setLoop( bool loop, bool palindrome )
 {
-    mGstData.loop = loop;
     mGstData.palindrome = palindrome;
 	
+	if( mGstData.loop == loop)
+		return;
+	
+	mGstData.loop = loop;
 	if( mGstData.loop )
 		sendSeekEvent( getPositionNanos(),  GstSeekFlags( GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE | GST_SEEK_FLAG_SEGMENT ) );
 	else
@@ -929,18 +932,25 @@ float GstPlayer::getRate() const
 
 void GstPlayer::setActiveSegment( float startTime, float duration   ){
 	
+	auto end = (startTime+duration)*GST_SECOND;
+	auto start = startTime*GST_SECOND;
+	
+	if( mGstData.segmentEnd == end && mGstData.segmentStart == start)
+		return;
+	
+	mGstData.segmentEnd = end;
+	mGstData.segmentStart = start;
+	
 	GstEvent* seekEvent;
 	GstSeekFlags seekFlags;
 	
 	if( mGstData.loop){
-		seekFlags = GstSeekFlags( GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE | GST_SEEK_FLAG_SEGMENT);
+		seekFlags = GstSeekFlags(  GST_SEEK_FLAG_SEGMENT );
 	}else{
-		seekFlags = GstSeekFlags( GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE );
+		seekFlags = GstSeekFlags();
 	}
 	
-	mGstData.segmentEnd = (startTime+duration)*GST_SECOND;
-	mGstData.segmentStart = startTime*GST_SECOND;
-	
+		
 	seekEvent = gst_event_new_seek( getRate(), GST_FORMAT_TIME, seekFlags, GST_SEEK_TYPE_SET, mGstData.segmentStart, GST_SEEK_TYPE_SET, mGstData.segmentEnd  );
 	gboolean successSeek = gst_element_send_event( mGstData.pipeline, seekEvent );
 	
@@ -951,15 +961,18 @@ void GstPlayer::setActiveSegment( float startTime, float duration   ){
 
 void GstPlayer::resetActiveSegment()
 {
+	if( mGstData.segmentEnd == -1.0 && mGstData.segmentStart == 0.0)
+		return;
+	
 	GstEvent* seekEvent;
 	GstSeekFlags seekFlags;
 	
 	if( mGstData.loop){
-		seekFlags = GstSeekFlags( GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE | GST_SEEK_FLAG_SEGMENT);
+		seekFlags = GstSeekFlags( GST_SEEK_FLAG_SEGMENT);
 	}else{
-		seekFlags = GstSeekFlags( GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE );
+		seekFlags = GstSeekFlags();
 	}
-	mGstData.segmentStart = 0;
+	mGstData.segmentStart = 0.0;
 	mGstData.segmentEnd = -1.0;
 	
 	seekEvent = gst_event_new_seek( getRate(), GST_FORMAT_TIME, seekFlags, GST_SEEK_TYPE_SET, mGstData.segmentStart, GST_SEEK_TYPE_SET, mGstData.segmentEnd  );
